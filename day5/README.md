@@ -26,27 +26,38 @@ Then, the rearrangement procedure is given. In each step of the procedure, a qua
 [N] [C]    
 [Z] [M] [P]
  1   2   3 
+ ```
+
 In the second step, three crates are moved from stack 1 to stack 3. Crates are moved one at a time, so the first crate to be moved (D) ends up below the second and third crates:
 
+```
         [Z]
         [N]
     [C] [D]
     [M] [P]
  1   2   3
+ ```
+
 Then, both crates are moved from stack 2 to stack 1. Again, because crates are moved one at a time, crate C ends up below crate M:
 
+```
         [Z]
         [N]
 [M]     [D]
 [C]     [P]
  1   2   3
+ ```
+
 Finally, one crate is moved from stack 1 to stack 2:
 
+```
         [Z]
         [N]
         [D]
 [C] [M] [P]
  1   2   3
+ ```
+ 
 The Elves just need to know which crate will end up on top of each stack; in this example, the top crates are C in stack 1, M in stack 2, and Z in stack 3, so you should combine these together and give the Elves the message CMZ.
 
 After the rearrangement procedure completes, what crate ends up on top of each stack?

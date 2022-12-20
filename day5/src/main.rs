@@ -8,7 +8,12 @@ fn main() {
     let input = contents.as_str();
 
     let score1 = parse_cargo(input);
-    println!("Score1: {}", score1);
+    println!("Score1:");
+    println!("{}", score1);
+
+    let score2 = parse_cargo2(input);
+    println!("Score2:");
+    println!("{}", score2);
 }
 
 fn parse_cargo(input: &str) -> String {
@@ -34,10 +39,47 @@ fn parse_cargo(input: &str) -> String {
     return result;
 }
 
+fn parse_cargo2(input: &str) -> String {
+    let lines: Vec<_> = input.split('\n').collect();
+    let instruction_idx = find_instruction_line(&lines);
+
+    let platform_line = lines[instruction_idx-1];
+    let platform_idxs = build_platform_idxs(platform_line);
+
+    let levels = lines[0..(instruction_idx-1)].iter().rev().collect();
+    let mut platforms = load_platforms(levels, platform_idxs);
+
+    let instructions = parse_move_instructions(
+        lines[(instruction_idx+1)..lines.len()].iter()
+    );
+    
+    execute_instructions2(instructions, &mut platforms);
+
+    let mut result = String::new();
+    for platform in platforms {
+        result.push(platform.last().unwrap().clone());
+    }
+    return result;
+}
+
 fn execute_instructions(instructions: Vec<(usize, usize, usize)>, platforms: &mut Vec<Vec<char>>) {
     for (amount, source, target) in instructions {
         for _ in 0..amount {
             let cargo = platforms[source-1].pop().unwrap();
+            platforms[target-1].push(cargo);
+        }
+    }
+}
+
+fn execute_instructions2(instructions: Vec<(usize, usize, usize)>, platforms: &mut Vec<Vec<char>>) {
+    for (amount, source, target) in instructions {
+        let mut crane = Vec::new();
+        for _ in 0..amount {
+            let cargo = platforms[source-1].pop().unwrap();
+            crane.push(cargo);
+        }
+        while !crane.is_empty() {
+            let cargo = crane.pop().unwrap();
             platforms[target-1].push(cargo);
         }
     }
@@ -121,6 +163,13 @@ mod tests {
     }
 
     #[test]
+    fn it_parse_cargo2() {
+        let actual = parse_cargo2(TEST_INPUT);
+        let expect = String::from("MCD");
+        assert_eq!(actual, expect);
+    }
+
+    #[test]
     fn it_find_instruction_line() {
         let lines: Vec<_> = TEST_INPUT.split('\n').collect();
         let actual = find_instruction_line(&lines);
@@ -189,6 +238,28 @@ mod tests {
             Vec::from(['C']),
             Vec::from(['M']),
             Vec::from(['P', 'D', 'N', 'Z']),
+        ]);
+        assert_eq!(platforms, expect);
+    }
+
+    #[test]
+    fn it_execute_instructions2() {
+        let instructions = Vec::from([
+            (1, 2, 1),
+            (3, 1, 3),
+            (2, 2, 1),
+            (1, 1, 2),
+        ]);
+        let mut platforms = Vec::from([
+            Vec::from(['Z', 'N']),
+            Vec::from(['M', 'C', 'D']),
+            Vec::from(['P']),
+        ]);
+        execute_instructions2(instructions, &mut platforms);
+        let expect = Vec::from([
+            Vec::from(['M']),
+            Vec::from(['C']),
+            Vec::from(['P', 'Z', 'N', 'D']),
         ]);
         assert_eq!(platforms, expect);
     }

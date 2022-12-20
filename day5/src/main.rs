@@ -1,24 +1,79 @@
-//use regex::Regex;
+use std::fs;
+use regex::Regex;
+use std::slice::Iter;
 
 fn main() {
-    parse_cargo("Hello, world!");
+    let contents = fs::read_to_string("input.txt")
+        .expect("Should have been able to read the file");
+    let input = contents.as_str();
+
+    let score1 = parse_cargo(input);
+    println!("Score1: {}", score1);
 }
 
-fn parse_cargo(input: &str) -> usize {
+fn parse_cargo(input: &str) -> String {
     let lines: Vec<_> = input.split('\n').collect();
     let instruction_idx = find_instruction_line(&lines);
 
     let platform_line = lines[instruction_idx-1];
     let platform_idxs = build_platform_idxs(platform_line);
-    let platforms: Vec<Vec<char>> = vec![Vec::new(); platform_idxs.len()];
 
-    lines[0..(instruction_idx-2)]
-        .iter()
-        .rev()
-        .enumerate()
-        .
+    let levels = lines[0..(instruction_idx-1)].iter().rev().collect();
+    let mut platforms = load_platforms(levels, platform_idxs);
 
-    return instruction_idx;
+    let instructions = parse_move_instructions(
+        lines[(instruction_idx+1)..lines.len()].iter()
+    );
+    
+    execute_instructions(instructions, &mut platforms);
+
+    let mut result = String::new();
+    for platform in platforms {
+        result.push(platform.last().unwrap().clone());
+    }
+    return result;
+}
+
+fn execute_instructions(instructions: Vec<(usize, usize, usize)>, platforms: &mut Vec<Vec<char>>) {
+    for (amount, source, target) in instructions {
+        for _ in 0..amount {
+            let cargo = platforms[source-1].pop().unwrap();
+            platforms[target-1].push(cargo);
+        }
+    }
+}
+
+fn parse_move_instructions(lines: Iter<&str>) -> Vec<(usize, usize, usize)> {
+    let re = Regex::new(r"\s*move (\d+) from (\d+) to (\d+)\s*").unwrap();
+    let instructions = lines.flat_map(
+        |l| 
+        re.captures(l).map(
+            |cap| (
+                cap[1].parse().unwrap_or(0), 
+                cap[2].parse().unwrap_or(0),
+                cap[3].parse().unwrap_or(0),
+            )
+        )
+    ).collect();
+    return instructions;
+}
+
+fn load_platforms(levels: Vec<&&str>, platform_idxs: Vec<usize>) -> Vec<Vec<char>> {
+    let mut platforms: Vec<Vec<char>> = vec![Vec::new(); platform_idxs.len()];
+    levels.iter()
+        .for_each(
+            |l| {
+            platform_idxs.iter()
+                .enumerate()
+                .for_each(
+                    |(i, idx)|
+                    match l.chars().nth(idx.clone()) {
+                        Some(c) if c.is_alphabetic() => platforms[i].push(c),
+                        _ => (),
+                    }
+                )
+        });
+    return platforms;
 }
 
 fn find_instruction_line(lines: &Vec<&str>) -> usize {
@@ -59,6 +114,13 @@ mod tests {
     );
 
     #[test]
+    fn it_parse_cargo() {
+        let actual = parse_cargo(TEST_INPUT);
+        let expect = String::from("CMZ");
+        assert_eq!(actual, expect);
+    }
+
+    #[test]
     fn it_find_instruction_line() {
         let lines: Vec<_> = TEST_INPUT.split('\n').collect();
         let actual = find_instruction_line(&lines);
@@ -73,4 +135,62 @@ mod tests {
         let expect = Vec::from([1, 5, 9]);
         assert_eq!(actual, expect);
     }
+
+    #[test]
+    fn it_load_platforms() {
+        let levels = Vec::from([    
+            &"[Z] [M] [P]",    
+            &"[N] [C]    ",
+            &"[D]        ",
+        ]);
+        let platform_idxs = Vec::from([1, 5, 9]); 
+        let actual = load_platforms(levels, platform_idxs);
+        let expect = Vec::from([
+            Vec::from(['Z', 'N', 'D']),
+            Vec::from(['M', 'C']),
+            Vec::from(['P']),    
+        ]);
+        assert_eq!(actual, expect);
+    }
+
+    #[test]
+    fn it_parse_move_instructions() {
+        let lines = [
+            "move 1 from 2 to 1",
+            "move 3 from 1 to 3",
+            "move 2 from 2 to 1",
+            "move 1 from 1 to 2",
+        ].iter();
+        let actual = parse_move_instructions(lines);
+        let expect = Vec::from([
+            (1, 2, 1),
+            (3, 1, 3),
+            (2, 2, 1),
+            (1, 1, 2),
+        ]);
+        assert_eq!(actual, expect);
+    }
+
+    #[test]
+    fn it_execute_instructions() {
+        let instructions = Vec::from([
+            (1, 2, 1),
+            (3, 1, 3),
+            (2, 2, 1),
+            (1, 1, 2),
+        ]);
+        let mut platforms = Vec::from([
+            Vec::from(['Z', 'N']),
+            Vec::from(['M', 'C', 'D']),
+            Vec::from(['P']),
+        ]);
+        execute_instructions(instructions, &mut platforms);
+        let expect = Vec::from([
+            Vec::from(['C']),
+            Vec::from(['M']),
+            Vec::from(['P', 'D', 'N', 'Z']),
+        ]);
+        assert_eq!(platforms, expect);
+    }
+
 }

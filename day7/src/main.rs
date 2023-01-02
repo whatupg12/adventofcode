@@ -10,7 +10,11 @@ fn main() {
         .expect("Expect input.txt file");
 
     let file_map = derive_file_system(input.as_str());
+    //print_map(&file_map);
+    //println!();
     let dir_map = calculate_directory_sizes(&file_map);
+
+    //print_map(&dir_map);
 
     let small_dirs = find_at_most_size_dirs(&dir_map, 100_000);
     println!("total1: {}", small_dirs);
@@ -102,11 +106,22 @@ fn calculate_directory_sizes(file_map: &HashMap<String, usize>) -> HashMap<Strin
 fn find_at_most_size_dirs(dir_map: &HashMap<String, usize>, at_most: usize) -> usize {
     let mut total = 0;
     for (_, dsize) in dir_map {
-        if at_most >= total {
+        if at_most >= *dsize {
             total += dsize;
         }
     }
     return total;
+}
+
+
+fn print_map(map: &HashMap<String, usize>) {
+    let mut ordered_keys: Vec<_> = map.keys().collect();
+    ordered_keys.sort();
+
+    for key in ordered_keys {
+        let value = map[key];
+        println!("{} => {}", key, value);
+    }
 }
 
 

@@ -18,6 +18,9 @@ fn main() {
 
     let small_dirs = find_at_most_size_dirs(&dir_map, 100_000);
     println!("total1: {}", small_dirs);
+
+    let delete_dir = find_dir_to_delete(&dir_map, 30_000_000, 70_000_000);
+    println!("total2: {}", delete_dir);
 }
 
 fn derive_file_system(input: &str) -> HashMap<String, usize> {
@@ -114,6 +117,25 @@ fn find_at_most_size_dirs(dir_map: &HashMap<String, usize>, at_most: usize) -> u
 }
 
 
+fn find_dir_to_delete(dir_map: &HashMap<String, usize>, at_least: usize, total: usize) -> usize {
+    let total_used = dir_map["/"];
+    let free_space = total - total_used;
+    let space_to_free = at_least - free_space;
+
+    println!("total={}, total_used={}, free={}, at_least={}, space_to_free={}", total, total_used, free_space, at_least, space_to_free);
+
+    let mut min_to_delete = None;
+    for (_, dsize) in dir_map {
+        if space_to_free <= *dsize {
+            if min_to_delete.filter(|m| *m < *dsize).is_none() {
+                min_to_delete = Some(*dsize);
+            }
+        }
+    }
+    return min_to_delete.unwrap_or(0);
+}
+
+
 fn print_map(map: &HashMap<String, usize>) {
     let mut ordered_keys: Vec<_> = map.keys().collect();
     ordered_keys.sort();
@@ -200,6 +222,15 @@ mod tests {
                 (String::from("/"),  584 + 29116 + 2557 + 62596 + 4060174 + 8033020 + 5626152 + 7214296 + 14848514 + 8504156),
             ]
         );
+        assert_eq!(actual, expect);
+    }
+
+    #[test]
+    fn it_find_dir_to_delete() {
+        let file_map = derive_file_system(INPUT);
+        let dir_map = calculate_directory_sizes(&file_map);
+        let actual = find_dir_to_delete(&dir_map, 30_000_000, 70_000_000);
+        let expect = 24933642;
         assert_eq!(actual, expect);
     }
 

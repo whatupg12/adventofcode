@@ -1,74 +1,22 @@
-use std::fmt;
 use std::collections::HashMap;
-use std::str::FromStr;
+use std::fs;
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::path::Path;
-use std::ffi::OsStr;
+use std::path::PathBuf;
 
 
 fn main() {
-    println!("Hello, world!");
-    // println!("{}", root_root);
+    let input = fs::read_to_string("input.txt")
+        .expect("Expect input.txt file");
 
-    // let small_dir_sizes = find_small_dir_sizes(&root_root, 100_000);
-    // println!("total: {}", small_dir_sizes.iter().sum::<usize>());
+    let file_map = derive_file_system(input.as_str());
+    let dir_map = calculate_directory_sizes(&file_map);
+
+    let small_dirs = find_at_most_size_dirs(&dir_map, 100_000);
+    println!("total1: {}", small_dirs);
 }
 
-#[derive(PartialEq)]
-#[derive(Debug)]
-enum Line {
-    List,
-    ChangeDirectory(String),
-    Directory(String),
-    File(usize, String),
-    Nothing,
-}
-
-fn derive_file_system(input: &str) -> Directory {
-    let mut lines = input.split('\n')
-        .map(parse_line);
-
-    if lines.next() != Some(Line::ChangeDirectory(String::from("/"))) { 
-        panic!("first command must be to root");
-    }
-
-    let mut root_map = HashMap::new();
-
-    let fname: String;
-    let new_dir: String;
-
-    let mut file_map = HashMap::new();
-    let mut relative_path = Path::new("/");
-    for line in lines {
-        match line {
-            Line::File(fsize, fname) => {
-                let path = relative_path.join(Path::new(OsStr::new(fname.as_str()))).as_path();
-                file_map.insert(
-                    path,
-                    Item::File(fsize)
-                );
-                ();
-            },
-            Line::ChangeDirectory(new_dir) => {
-                let mut new_path = Path::new(OsStr::new(new_dir.as_str()));
-                if new_path.is_relative() {
-                    relative_path = relative_path.join(new_path).as_path();
-                } else {
-                    relative_path = new_path;
-                }
-                ();
-            },
-            _ => (),
-        }
-    }
-    
-    return Directory { level: 0, dir: root_map };
-}
-
-
-
-fn parse_line(line: &str) -> Line {
+fn derive_file_system(input: &str) -> HashMap<String, usize> {
     lazy_static! {
         static ref LS_RE: Regex = Regex::new(r"^\$\s+ls\s*$").unwrap();
         static ref CD_RE: Regex = Regex::new(r"^\$\s+cd\s+([\w/\.]+)\s*$").unwrap();
@@ -76,82 +24,91 @@ fn parse_line(line: &str) -> Line {
         static ref FILE_RE: Regex = Regex::new(r"^\s*(\d+)\s+([\w\.]+)\s*$").unwrap();
     }
 
-    if LS_RE.is_match(line) {
-        return Line::List;
-    }
-    if let Some(cap) = CD_RE.captures(line) {
-        return Line::ChangeDirectory(String::from_str(&cap[1]).unwrap());
-    }
-    if let Some(cap) = DIR_RE.captures(line) {
-        return Line::Directory(String::from_str(&cap[1]).unwrap());
-    }
-    if let Some(cap) = FILE_RE.captures(line) {
-        return Line::File(cap[1].parse().unwrap_or(0), String::from_str(&cap[2]).unwrap());
-    }
-    return Line::Nothing;
-}
+    let lines: Vec<_> = input.split('\n')
+        .collect();
 
+    if lines.is_empty() {
+        panic!("empty lines");
+    }
+    if CD_RE.captures(lines[0]).filter(|cap| &cap[1] == "/").is_none() { 
+        panic!("first command must be to change to root");
+    }
 
-struct Directory {
-    level: usize,
-    dir: HashMap<String, Item>,
-}
-
-impl fmt::Display for Directory {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let indent = "  ";
-
-        let mut margin = String::new();
-        for _ in 0..self.level {
-            margin.push_str(indent);
+    let mut file_map = HashMap::new();
+    let mut path_buf = PathBuf::from("/");
+    
+    for line in lines {
+        if LS_RE.is_match(line) || DIR_RE.is_match(line) {
+            continue;
         }
 
-        let mut res: fmt::Result = fmt::Result::Ok(());
-        for (name, item) in &self.dir {
-            let next = match item {
-                Item::File(s) => write!(f, "{} - {} (file, size={})\n", margin, name, s),
-                Item::Directory(d) => write!(f, "{} - {} (dir)\n{}", margin, name, d),
-            };
-            res = res.and(next);
+        if let Some(cap) = CD_RE.captures(line) {
+            let fname = &cap[1];
+            if fname == ".." {
+                path_buf.pop();
+
+            } else if fname.starts_with("/") {
+                path_buf = PathBuf::from(fname);
+
+            } else {
+                path_buf.push(fname);
+            }
+            continue;
         }
 
-        return res;
-    }
-}
+        if let Some(cap) = FILE_RE.captures(line) {
+            let fsize: usize = cap[1].parse().unwrap_or(0);
+            let fname = &cap[2];
 
-enum Item {
-    File(usize),
-    Directory(Directory)
-}
+            let mut this_path_buf = path_buf.clone();
+            this_path_buf.push(fname);
 
-
-fn calculate_dir_sizes(root_dir: &Directory) -> (usize, Vec<usize>) {
-    let mut total = 0;
-    let mut dir_sizes = Vec::new();
-    for (_, item) in &root_dir.dir {
-        match item {
-            Item::File(fsize) => total += fsize,
-            Item::Directory(dir) => {
-                let (dir_size, sub_dir_sizes) = calculate_dir_sizes(dir);
-                total += dir_size;
-                dir_sizes.extend(sub_dir_sizes);
+            let fpath = String::from(this_path_buf.to_str().unwrap());
+            if !file_map.contains_key(&fpath) {
+                file_map.insert(fpath, fsize);
             }
         }
     }
-    dir_sizes.push(total);
-    return (total, dir_sizes);
+    
+    return file_map;
 }
 
-fn find_small_dir_sizes(root_dir: &Directory, lsize: usize) -> Vec<usize> {
-    let mut small_dir_sizes = Vec::new();
-    let (_, dir_sizes) = calculate_dir_sizes(root_dir);
-    for dir_size in dir_sizes {
-        if dir_size <= lsize {
-            small_dir_sizes.push(dir_size);
+
+fn calculate_directory_sizes(file_map: &HashMap<String, usize>) -> HashMap<String, usize> {
+    let mut dir_map: HashMap<String, usize> = HashMap::new();
+    for (fpath, fsize) in file_map {
+        let mut path_buf = PathBuf::from(fpath);
+        let fsize = fsize.to_owned();
+        
+        loop {
+            if !path_buf.pop() {
+                break;
+            }
+        
+            let parent_path = String::from(path_buf.to_str().unwrap());
+            
+            if dir_map.contains_key(&parent_path) {
+                *dir_map.get_mut(&parent_path).unwrap() += fsize;
+            } else {
+                dir_map.insert(parent_path, fsize);
+            }
         }
     }
-    return small_dir_sizes;
+
+    return dir_map;
 }
+
+
+fn find_at_most_size_dirs(dir_map: &HashMap<String, usize>, at_most: usize) -> usize {
+    let mut total = 0;
+    for (_, dsize) in dir_map {
+        if at_most >= total {
+            total += dsize;
+        }
+    }
+    return total;
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -183,80 +140,52 @@ mod tests {
         "7214296 k\n",
     );
 
-    fn make_test_root() -> Directory {
-        let i_file = Item::File(584);
-        let f_file = Item::File(29116);
-        let g_file = Item::File(2557);
-        let h_lst_file = Item::File(62596);
-        let b_txt_file = Item::File(14848514);
-        let c_dat_file = Item::File(8504156);
-        let j_file = Item::File(4060174);
-        let d_log_file = Item::File(8033020);
-        let d_ext_file = Item::File(5626152);
-        let k_file = Item::File(7214296);
-    
-        let (l0, l1, l2, l3) = (0, 1, 2, 3);
-    
-        let mut e_map = HashMap::new();
-        e_map.insert(String::from("i"), i_file);
-        let e_dir = Item::Directory(Directory {level: l3, dir: e_map});
-    
-        let mut a_map = HashMap::new();
-        a_map.insert(String::from("e"), e_dir);
-        a_map.insert(String::from("f"), f_file);
-        a_map.insert(String::from("g"), g_file);
-        a_map.insert(String::from("h_lst"), h_lst_file);
-        let a_dir = Item::Directory(Directory {level: l2, dir: a_map});
-        
-        let mut d_map = HashMap::new();
-        d_map.insert(String::from("j"), j_file);
-        d_map.insert(String::from("d.log"), d_log_file);
-        d_map.insert(String::from("d.ext"), d_ext_file);
-        d_map.insert(String::from("k"), k_file);
-        let d_dir = Item::Directory(Directory {level: l2, dir: d_map});
-    
-        let mut root_dir = HashMap::new();
-        root_dir.insert(String::from("a"), a_dir);
-        root_dir.insert(String::from("b.txt"), b_txt_file);
-        root_dir.insert(String::from("c.dat"), c_dat_file);
-        root_dir.insert(String::from("d"), d_dir);
-    
-    
-        let mut root = HashMap::new();
-        root.insert(String::from("/"), Item::Directory(Directory{level: l1, dir: root_dir}));
-        let root_root = Directory {level: l0, dir: root};
-
-        return root_root;
+    #[test]
+    fn it_derive_file_system() {
+        let actual = derive_file_system(INPUT);
+        let expect = HashMap::from(
+            [
+                (String::from("/a/e/i"), 584),
+                (String::from("/a/f"), 29116),
+                (String::from("/a/g"), 2557),
+                (String::from("/a/h.lst"), 62596),
+                (String::from("/b.txt"), 14848514),
+                (String::from("/c.dat"), 8504156),
+                (String::from("/d/j"), 4060174),
+                (String::from("/d/d.log"), 8033020),
+                (String::from("/d/d.ext"), 5626152),
+                (String::from("/d/k"), 7214296),
+            ]
+        );
+        assert_eq!(actual, expect);
     }
 
     #[test]
-    fn it_find_small_dir_sizes() {
-        let root_dir = make_test_root();
-        let actual: usize = find_small_dir_sizes(&root_dir, 100_000).iter().sum();
-        let expect = 95437;
+    fn it_calculate_directory_sizes() {
+        let file_map = HashMap::from(
+            [
+                (String::from("/a/e/i"), 584),
+                (String::from("/a/f"), 29116),
+                (String::from("/a/g"), 2557),
+                (String::from("/a/h.lst"), 62596),
+                (String::from("/b.txt"), 14848514),
+                (String::from("/c.dat"), 8504156),
+                (String::from("/d/j"), 4060174),
+                (String::from("/d/d.log"), 8033020),
+                (String::from("/d/d.ext"), 5626152),
+                (String::from("/d/k"), 7214296),
+            ]
+        );
+        let actual = calculate_directory_sizes(&file_map);
+        let expect = HashMap::from(
+            [
+                (String::from("/a/e"), 584),
+                (String::from("/a"), 584 + 29116 + 2557 + 62596),
+                (String::from("/d"), 4060174 + 8033020 + 5626152 + 7214296),
+                (String::from("/"),  584 + 29116 + 2557 + 62596 + 4060174 + 8033020 + 5626152 + 7214296 + 14848514 + 8504156),
+            ]
+        );
         assert_eq!(actual, expect);
     }
-    
-    #[test]
-    fn it_parse_line() {
-        let actual = parse_line("$ ls");
-        let expect = Line::List;
-        assert_eq!(actual, expect);
 
-        let actual = parse_line("$ cd ..");
-        let expect = Line::ChangeDirectory(String::from(".."));
-        assert_eq!(actual, expect);
-
-        let actual = parse_line("$ cd /");
-        let expect = Line::ChangeDirectory(String::from("/"));
-        assert_eq!(actual, expect);
-
-        let actual = parse_line("dir a");
-        let expect = Line::Directory(String::from("a"));
-        assert_eq!(actual, expect);
-
-        let actual = parse_line("1234 a.td");
-        let expect = Line::File(1234, String::from("a.td"));
-        assert_eq!(actual, expect);
-    }
 }

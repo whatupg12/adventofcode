@@ -9,6 +9,9 @@ fn main() {
 
     let visible_trees = count_visible_trees(&forest);
     println!("Visible: {}", visible_trees);
+
+    let visible_trees = find_best_treehouse(&forest);
+    println!("Best house: {}", visible_trees);
 }
 
 fn parse_forest(input: &str) -> Vec<Vec<u32>> {
@@ -79,6 +82,67 @@ fn count_visible_trees(forest: &Vec<Vec<u32>>) -> usize {
     return total;
 }
 
+fn find_best_treehouse(forest: &Vec<Vec<u32>>) -> usize {
+    let height = forest.len();
+    let width = forest[0].len();
+
+    let mut max_trees = 0;
+    for i in 1..(height-1) {
+        for j in 1..(width-1) {
+            let trees = count_trees_from(forest, i, j);
+            if max_trees < trees {
+                max_trees = trees;
+            }
+        }
+    }
+
+    return max_trees;
+}
+
+fn count_trees_from(forest: &Vec<Vec<u32>>, i: usize, j: usize) -> usize {
+    let height = forest.len();
+    let width = forest[0].len();
+    let house = forest[i][j];
+
+    let mut up = 0;
+    for v in (0..i).rev() {
+        let tree = forest[v][j];
+        up += 1;
+        if tree >= house {
+            break;
+        }
+    }
+
+    let mut down = 0;
+    for v in (i+1)..height {
+        let tree = forest[v][j];
+        down += 1;
+        if tree >= house {
+            break;
+        }
+    }
+
+    let mut left = 0;
+    for w in (0..j).rev() {
+        let tree = forest[i][w];
+        left += 1;
+        if tree >= house {
+            break;
+        }
+    }
+
+    let mut right = 0;
+    for w in (j+1)..width {
+        let tree = forest[i][w];
+        right += 1;
+        if tree >= house {
+            break;
+        }
+    }
+
+    return up * down * left * right;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -115,5 +179,40 @@ mod tests {
         let expect = 21;
         assert_eq!(actual, expect);
     }
+
+    #[test]
+    fn it_count_trees_from() {
+        let forest = Vec::from([
+            Vec::from([3, 0, 3, 7, 3]),
+            Vec::from([2, 5, 5, 1, 2]),
+            Vec::from([6, 5, 3, 3, 2]),
+            Vec::from([3, 3, 5, 4, 9]),
+            Vec::from([3, 5, 3, 9, 0]),
+        ]);
+
+        let actual = count_trees_from(&forest, 1, 2);
+        let expect = 4;
+        assert_eq!(actual, expect);
+
+        let actual = count_trees_from(&forest, 3, 2);
+        let expect = 8;
+        assert_eq!(actual, expect);
+    }
+
+    #[test]
+    fn it_find_best_treehouse() {
+        let forest = Vec::from([
+            Vec::from([3, 0, 3, 7, 3]),
+            Vec::from([2, 5, 5, 1, 2]),
+            Vec::from([6, 5, 3, 3, 2]),
+            Vec::from([3, 3, 5, 4, 9]),
+            Vec::from([3, 5, 3, 9, 0]),
+        ]);
+
+        let actual = find_best_treehouse(&forest);
+        let expect = 8;
+        assert_eq!(actual, expect);
+    }
+    
 }
 

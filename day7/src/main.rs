@@ -136,15 +136,15 @@ fn find_dir_to_delete(dir_map: &HashMap<String, usize>, at_least: usize, total: 
 }
 
 
-fn print_map(map: &HashMap<String, usize>) {
-    let mut ordered_keys: Vec<_> = map.keys().collect();
-    ordered_keys.sort();
+// fn print_map(map: &HashMap<String, usize>) {
+//     let mut ordered_keys: Vec<_> = map.keys().collect();
+//     ordered_keys.sort();
 
-    for key in ordered_keys {
-        let value = map[key];
-        println!("{} => {}", key, value);
-    }
-}
+//     for key in ordered_keys {
+//         let value = map[key];
+//         println!("{} => {}", key, value);
+//     }
+// }
 
 
 #[cfg(test)]
